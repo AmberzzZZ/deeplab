@@ -1,6 +1,6 @@
-from keras.layers import Input, GlobalAveragePooling2D, Reshape, Conv2D, BatchNormalization, ReLU, Concatenate, Lambda, Add
+from keras.layers import Input, GlobalAveragePooling2D, Reshape, Conv2D, BatchNormalization, ReLU, Concatenate, Lambda, concatenate
 from keras.models import Model
-from backbones import ResNet50
+from backbones import ResNet50, Conv_BN
 import tensorflow as tf
 
 
@@ -26,16 +26,15 @@ def deeplabv3(input_tensor=None, input_shape=(512,512,3), classes=21,
     # decoder
     shortcut = []
     while output_stride>=8:
-        # fusion & upSamp
+        # fcn shortcut & upSamp
         if shortcut:
-            x = Add()([x, shortcut[-1]])
+            x = concatenate([x, shortcut[-1]])
         h, w = x._keras_shape[1:3]
         x = Lambda(lambda x: tf.image.resize_bilinear(x, [h,w]))(x)
         shortcut.append(x)
         output_stride /= 2
 
-    if shortcut:
-        x = Add()([x, shortcut[-1]])
+    # straight upSamp to origin resolu
     x = Lambda(lambda x: tf.image.resize_bilinear(x, input_shape[:2]))(x)
 
     # head
@@ -50,14 +49,10 @@ def Atrous_Conv_BN(x, filters, rate):
     if isinstance(rate, tuple):
         # MG block
         for r in rate:
-            x = Conv2D(filters, kernel_size=3, strides=1, padding='same', dilation_rate=r)(x)
-            x = BatchNormalization()(x)
-            x = ReLU()(x)
+            x = Conv_BN(x, filters, kernel_size=3, strides=1, activation=True, dilation_rate=r)
     else:
         # ASPP path
-        x = Conv2D(filters, kernel_size=3, strides=1, padding='same', dilation_rate=rate)(x)
-        x = BatchNormalization()(x)
-        x = ReLU()(x)
+        x = Conv_BN(x, filters, kernel_size=3, strides=1, activation=True, dilation_rate=rate)
 
     return x
 
@@ -65,18 +60,16 @@ def Atrous_Conv_BN(x, filters, rate):
 def ASPP(x, atrous_rates, output_stride):
     if output_stride==8:
         atrous_rates = [i*2 for i in atrous_rates]
-    h, w = x._keras_shape[1:3]
-    b0 = Conv2D(256, kernel_size=1, strides=1, padding='same')(x)
-    b0 = BatchNormalization()(b0)
-    b0 = ReLU()(b0)
+    b0 = Conv_BN(x, 256, kernel_size=1, strides=1, activation=True)
 
     b1 = Atrous_Conv_BN(x, 256, rate=atrous_rates[0])
     b2 = Atrous_Conv_BN(x, 256, rate=atrous_rates[1])
     b3 = Atrous_Conv_BN(x, 256, rate=atrous_rates[2])
 
+    h, w = x._keras_shape[1:3]
     b4 = GlobalAveragePooling2D()(x)
     b4 = Reshape((1,1,x._keras_shape[-1]))(b4)
-    b4 = Conv2D(256, kernel_size=1, strides=1, padding='same')(b4)
+    b4 = Conv_BN(b4, 256, kernel_size=1, strides=1, activation=True)
     b4 = Lambda(lambda x: tf.image.resize_bilinear(x, [h,w]))(b4)
 
     x = Concatenate(axis=-1)([b0, b1, b2, b3, b4])
