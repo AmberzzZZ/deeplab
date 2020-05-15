@@ -1,6 +1,8 @@
 ### 复现deeplabV3论文中的最强版本：
     resnet50, stride8, MG+ASPP
 
+### 自然图像语义分割
+    在医学图像上结果不会更好，且参数量大
 
 ### 改进方向
     参考：https://github.com/tensorflow/models/blob/master/research/deeplab/g3doc/model_zoo.md
