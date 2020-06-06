@@ -34,9 +34,9 @@ def Xception():
             x = sep_id_block(x, filters=728)
         # exit flow
         x = sep_conv_block(x, filters=(728,1024,1024), strides=2)
-        x = sep_conv_block(x, filters=1536, strides=1)
-        x = sep_conv_block(x, filters=1536, strides=1)
-        x = sep_conv_block(x, filters=2048, strides=1)
+        x = Sep_Conv_BN(x, filters=1536, strides=1)
+        x = Sep_Conv_BN(x, filters=1536, strides=1)
+        x = Sep_Conv_BN(x, filters=2048, strides=1)
         return x, shortcut
     return model
 
